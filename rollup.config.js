@@ -1,0 +1,27 @@
+import resolve from "rollup-plugin-node-resolve"
+import commonjs from "rollup-plugin-commonjs"
+import babel from "rollup-plugin-babel"
+import serve from "rollup-plugin-serve"
+import { terser } from "rollup-plugin-terser"
+
+// `npm run build` -> `production` is true
+// `npm run dev` -> `production` is false
+const production = !process.env.ROLLUP_WATCH
+
+export default {
+	input: "src/index.js",
+	output: {
+		file: "dist/bundle.js",
+		format: "cjs",
+		sourcemap: true
+	},
+	plugins: [
+		resolve(), // resolve node_modules
+		commonjs(), // resolve commonjs modules to ES6
+		babel({
+			exclude: "node_modules/**" // only transpile our source code
+		}),
+		!production && serve("dist"), // use static web server at location
+		production && terser()
+	]
+}
