@@ -19,6 +19,7 @@ const MAX_ACCELERATION = 4
 const MAX_VELOCITY = 6
 
 const BRICK_SPEED = -3
+const COLLISION_THRESHOLD = 8
 
 function createPlayer(playerSheet) {
 	return Sprite({
@@ -28,7 +29,6 @@ function createPlayer(playerSheet) {
 		height: 17 * 4,
 		dy: PLAYER_SPEED,
 		animations: playerSheet.animations,
-		isFlipped: false,
 		update() {
 			if (keyPressed("left")) {
 				this.playAnimation("left")
@@ -140,10 +140,10 @@ function checkCollisionBrick(player, brick) {
 	// player on top of brick
 	else if (
 		yDeltaTop > 0 &&
-		yDeltaTop < 8 &&
+		yDeltaTop < COLLISION_THRESHOLD &&
 		// player.y - player.radius < brick.y + brick.height &&
-		xDeltaLeft > 8 &&
-		xDeltaRight < -8
+		xDeltaLeft > COLLISION_THRESHOLD &&
+		xDeltaRight < -COLLISION_THRESHOLD
 	) {
 		player.dy = brick.dy
 		player.y = brick.y - player.height
