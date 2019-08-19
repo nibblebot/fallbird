@@ -12,7 +12,13 @@ import {
 	keyPressed
 } from "kontra"
 
-const PLAYER_SPEED = 1
+import throttle from "lodash/throttle"
+
+const PLAYER_SPEED = 2
+const MAX_ACCELERATION = 4
+const MAX_VELOCITY = 6
+
+const BRICK_SPEED = -3
 
 function createPlayer(playerSheet) {
 	return Sprite({
@@ -26,19 +32,19 @@ function createPlayer(playerSheet) {
 		update() {
 			if (keyPressed("left")) {
 				this.playAnimation("left")
-				if (this.ddx > -8 && this.dx > -8) {
+				if (this.ddx > -MAX_ACCELERATION && this.dx > -MAX_VELOCITY) {
 					if (this.dx > 0) {
 						this.dx = 0
 					}
-					this.ddx = -1
+					this.ddx = -0.5
 				}
 			} else if (keyPressed("right")) {
 				this.playAnimation("right")
-				if (this.ddx < 8 && this.dx < 8) {
+				if (this.ddx < MAX_ACCELERATION && this.dx < MAX_VELOCITY) {
 					if (this.dx < 0) {
 						this.dx = 0
 					}
-					this.ddx = 1
+					this.ddx = 0.5
 				}
 			} else {
 				if (this.dx > 0) {
@@ -59,7 +65,7 @@ function createBrick(brickSheet, x, y) {
 		width: 16 * 4,
 		height: 16 * 4,
 		animations: brickSheet.animations,
-		dy: -1,
+		dy: BRICK_SPEED,
 		update() {
 			this.advance()
 		}
@@ -70,10 +76,10 @@ function createRowOfBricks(brickSheet) {
 	const canvas = getCanvas()
 	let x = 0
 	const BRICK_SIZE = 64
-	const y = canvas.height - BRICK_SIZE
+	const y = canvas.height
 	const bricks = []
 	while (x + BRICK_SIZE < canvas.width) {
-		if (Math.round(Math.random() * 4) > 0) {
+		if (Math.round(Math.random() * 2) > 0) {
 			bricks.push(createBrick(brickSheet, x, y))
 		}
 		x += BRICK_SIZE
@@ -102,26 +108,12 @@ function checkPlayerBounds(canvas, player) {
 }
 
 function checkCollisionBrick(player, brick) {
-	// player on top of brick
-	if (
-		player.y + player.height === brick.y &&
-		// player.y - player.radius < brick.y + brick.height &&
-		player.x + player.width > brick.x &&
-		player.x < brick.x + brick.width
-	) {
-		player.dy = brick.dy
-	}
-
-	// player not on top of brick
-	else {
+	const yDeltaTop = player.y + player.height - brick.y
+	// player intersecting from top by maximum 8 pixels
+	const xDeltaLeft = player.x + player.width - brick.x
+	const xDeltaRight = player.x - brick.x - brick.width
+	if (yDeltaTop >= 8 && player.y < brick.y + brick.height) {
 		player.dy = PLAYER_SPEED
-	}
-
-	// intersecting Y
-	if (
-		player.y + player.height > brick.y &&
-		player.y < brick.y + brick.height
-	) {
 		// left side of brick
 		if (
 			// right side of player > left side of brick
@@ -129,19 +121,34 @@ function checkCollisionBrick(player, brick) {
 			// left side of player < left side of brick
 			player.x < brick.x
 		) {
-			console.log("left side brick collision")
 			player.x = brick.x - player.width
+			player.dx = 0
+			player.ddx = 0
 		}
 		// right side of brick
 		else if (
 			// left side of player < right side of brick
-			player.x - player.width < brick.x + brick.width &&
+			player.x < brick.x + brick.width &&
 			// right side of player > right side of brick
 			player.x + player.width > brick.x + brick.width
 		) {
-			console.log("right side brick collision")
 			player.x = brick.x + brick.width
+			player.dx = 0
+			player.ddx = 0
 		}
+	}
+	// player on top of brick
+	else if (
+		yDeltaTop > 0 &&
+		yDeltaTop < 8 &&
+		// player.y - player.radius < brick.y + brick.height &&
+		xDeltaLeft > 8 &&
+		xDeltaRight < -8
+	) {
+		player.dy = brick.dy
+		player.y = brick.y - player.height
+	} else {
+		player.dy = PLAYER_SPEED
 	}
 }
 
@@ -149,7 +156,7 @@ function main() {
 	const { canvas } = init()
 	initKeys()
 	let bricks = []
-	load("/assets/sprites/birds.png", "/assets/sprites/bricks.png").then(
+	load("assets/sprites/birds.png", "assets/sprites/bricks.png").then(
 		([playerSprite, brickSprite]) => {
 			let playerSheet = SpriteSheet({
 				image: playerSprite,
@@ -179,10 +186,14 @@ function main() {
 			})
 
 			const player = createPlayer(playerSheet)
-			bricks = bricks.concat(createRowOfBricks(brickSheet))
+			const throttledCreateRowOfBricks = throttle(() => {
+				bricks = bricks.concat(createRowOfBricks(brickSheet))
+			}, 1000)
+
 			const loop = GameLoop({
 				update() {
 					player.update()
+					throttledCreateRowOfBricks()
 					checkPlayerBounds(canvas, player)
 					bricks.forEach(brick => {
 						brick.update()
