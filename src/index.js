@@ -1,102 +1,176 @@
-import { init, initKeys, GameLoop, Sprite, keyPressed, getCanvas } from "kontra"
-init()
-initKeys()
-const sprites = []
+import {
+	emit,
+	on,
+	off,
+	getCanvas,
+	init,
+	initKeys,
+	load,
+	GameLoop,
+	Sprite,
+	SpriteSheet,
+	keyPressed
+} from "kontra"
 
 const PLAYER_SPEED = 1
 
-let player = Sprite({
-	x: 100,
-	y: 100,
-	dy: PLAYER_SPEED,
-	radius: 30,
-	lineWidth: 4,
-	render() {
-		this.context.strokeStyle = "white"
-		this.context.lineWidth = this.lineWidth
-
-		this.context.beginPath() // start drawing a shape
-		this.context.arc(this.x, this.y, this.radius, 0, Math.PI * 2)
-		this.context.stroke() // outline the circle
-	},
-	update() {
-		if (keyPressed("left")) {
-			if (this.ddx > -8 && this.dx > -8) {
+function createPlayer(playerSheet) {
+	return Sprite({
+		x: 100,
+		y: 100,
+		width: 16 * 4,
+		height: 17 * 4,
+		dy: PLAYER_SPEED,
+		animations: playerSheet.animations,
+		isFlipped: false,
+		update() {
+			if (keyPressed("left")) {
+				this.playAnimation("left")
+				if (this.ddx > -8 && this.dx > -8) {
+					if (this.dx > 0) {
+						this.dx = 0
+					}
+					this.ddx = -1
+				}
+			} else if (keyPressed("right")) {
+				this.playAnimation("right")
+				if (this.ddx < 8 && this.dx < 8) {
+					if (this.dx < 0) {
+						this.dx = 0
+					}
+					this.ddx = 1
+				}
+			} else {
 				if (this.dx > 0) {
-					this.dx = 0
+					this.ddx = -0.1
+				} else if (this.dx < 0) {
+					this.ddx = 0.1
 				}
-				this.ddx = -1
 			}
-		} else if (keyPressed("right")) {
-			if (this.ddx < 8 && this.dx < 8) {
-				if (this.dx < 0) {
-					this.dx = 0
-				}
-				this.ddx = 1
-			}
-		} else {
-			if (this.dx > 0) {
-				this.ddx = -0.1
-			} else if (this.dx < 0) {
-				this.ddx = 0.1
-			}
+			this.advance()
 		}
-		this.advance()
-	}
-})
-sprites.push(player)
+	})
+}
 
-let brick = Sprite({
-	x: 0,
-	y: 400,
-	width: 800,
-	height: 40,
-	dy: -1,
-	render() {
-		this.context.fillStyle = "green"
-		this.context.fillRect(this.x, this.y, this.width, this.height)
-	},
-	update() {
-		this.advance()
-	}
-})
-sprites.push(brick)
+function createBrick(brickSprite) {
+	const canvas = getCanvas()
+	return Sprite({
+		x: 200,
+		y: canvas.height - 100,
+		// width: 100 + Math.random() * 700,
+		// height: 40,
+		image: brickSprite,
+		dy: -1,
+		render() {
+			this.context.fillStyle = "green"
+			this.context.fillRect(this.x, this.y, this.width, this.height)
+		},
+		update() {
+			this.advance()
+		}
+	})
+}
 
-function checkPlayerBounds(canvas) {
-	if (player.x - player.radius < 0) {
-		player.x = player.radius
-	} else if (player.x > canvas.width - player.radius) {
-		player.x = canvas.width - player.radius
+function checkPlayerBounds(canvas, player) {
+	// left
+	if (player.x < 0) {
+		player.x = 0
 	}
-	if (player.y > canvas.height - player.radius) {
-		player.y = canvas.height - player.radius
-	} else if (player.y - player.radius < 0) {
-		console.log("game over")
-		loop.stop()
+	// right
+	else if (player.x > canvas.width - player.width) {
+		player.x = canvas.width - player.width
+	}
+
+	// bottom
+	if (player.y > canvas.height - player.height) {
+		player.y = canvas.height - player.height
+	}
+	// top
+	else if (player.y - player.height < 0) {
+		emit("gameover")
 	}
 }
 
-const loop = GameLoop({
-	update() {
-		const canvas = getCanvas()
-		player.update()
-		brick.update()
-
-		checkPlayerBounds(canvas)
-		if (
-			player.y + player.radius + player.lineWidth > brick.y &&
-			player.y - player.radius < brick.y + brick.height &&
-			player.x + player.radius > brick.x &&
-			player.x - player.radius < brick.x + brick.width
-		) {
-			player.dy = brick.dy
-		} else {
-			player.dy = PLAYER_SPEED
-		}
-	},
-	render() {
-		sprites.forEach(sprite => sprite.render())
+function checkCollisionBrick(player, brick) {
+	if (
+		player.y + player.height === brick.y &&
+		// player.y - player.radius < brick.y + brick.height &&
+		player.x + player.width > brick.x &&
+		player.x < brick.x + brick.width
+	) {
+		player.dy = brick.dy
+	} else {
+		player.dy = PLAYER_SPEED
 	}
-})
 
-loop.start()
+	// intersecting Y
+	if (
+		player.y + player.height > brick.y &&
+		player.y < brick.y + brick.height
+	) {
+		// left side of brick
+		if (
+			// right side of player > left side of brick
+			player.x + player.width > brick.x &&
+			// left side of player < left side of brick
+			player.x < brick.x
+		) {
+			player.x = brick.x - player.width
+		}
+		// right side of brick
+		else if (
+			// left side of player < right side of brick
+			player.x - player.width < brick.x + brick.width &&
+			// right side of player > right side of brick
+			player.x + player.width > brick.x + brick.width
+		) {
+			player.x = brick.x + brick.width
+		}
+	}
+}
+function main() {
+	const { canvas } = init()
+	initKeys()
+	const bricks = []
+	load("/assets/sprites/birds.png", "/assets/sprites/bricks.png").then(
+		([playerSprite, brickSprite]) => {
+			let playerSheet = SpriteSheet({
+				image: playerSprite,
+				frameWidth: 16,
+				frameHeight: 17,
+				animations: {
+					// create a named animation: walk
+					left: {
+						frames: 0
+					},
+					right: {
+						frames: 1
+					}
+				}
+			})
+
+			const player = createPlayer(playerSheet)
+			bricks.push(createBrick(brickSprite))
+			const loop = GameLoop({
+				update() {
+					player.update()
+					checkPlayerBounds(canvas, player)
+					bricks.forEach(brick => {
+						brick.update()
+						checkCollisionBrick(player, brick)
+					})
+				},
+				render() {
+					player.render()
+					bricks.forEach(sprite => sprite.render())
+				}
+			})
+			on("gameover", () => {
+				loop.stop()
+			})
+			loop.start()
+		}
+	)
+}
+
+main()
