@@ -14,44 +14,37 @@ import {
 
 import throttle from "lodash/throttle"
 
-const PLAYER_SPEED = 2
-const MAX_ACCELERATION = 4
-const MAX_VELOCITY = 6
+const PLAYER_Y_VELOCITY = 3
+const MAX_X_VELOCITY = 8
+const PLAYER_HEIGHT = 68
+const PLAYER_WIDTH = 64
 
-const BRICK_SPEED = -3
+const BRICK_SIZE = 64
+const BRICK_VELOCITY = -4
+
 const COLLISION_THRESHOLD = 8
 
 function createPlayer(playerSheet) {
 	return Sprite({
 		x: 100,
 		y: 100,
-		width: 16 * 4,
-		height: 17 * 4,
-		dy: PLAYER_SPEED,
+		width: PLAYER_WIDTH,
+		height: PLAYER_HEIGHT,
+		dy: PLAYER_Y_VELOCITY,
 		animations: playerSheet.animations,
 		update() {
 			if (keyPressed("left")) {
 				this.playAnimation("left")
-				if (this.ddx > -MAX_ACCELERATION && this.dx > -MAX_VELOCITY) {
-					if (this.dx > 0) {
-						this.dx = 0
-					}
-					this.ddx = -0.5
+				if (this.dx > -MAX_X_VELOCITY) {
+					this.dx -= 1
 				}
 			} else if (keyPressed("right")) {
 				this.playAnimation("right")
-				if (this.ddx < MAX_ACCELERATION && this.dx < MAX_VELOCITY) {
-					if (this.dx < 0) {
-						this.dx = 0
-					}
-					this.ddx = 0.5
+				if (this.dx < MAX_X_VELOCITY) {
+					this.dx += 1
 				}
 			} else {
-				if (this.dx > 0) {
-					this.ddx = -0.1
-				} else if (this.dx < 0) {
-					this.ddx = 0.1
-				}
+				this.dx = 0
 			}
 			this.advance()
 		}
@@ -62,10 +55,10 @@ function createBrick(brickSheet, x, y) {
 	return Sprite({
 		x,
 		y,
-		width: 16 * 4,
-		height: 16 * 4,
+		width: PLAYER_WIDTH,
+		height: PLAYER_HEIGHT,
 		animations: brickSheet.animations,
-		dy: BRICK_SPEED,
+		dy: BRICK_VELOCITY,
 		update() {
 			this.advance()
 		}
@@ -75,7 +68,6 @@ function createBrick(brickSheet, x, y) {
 function createRowOfBricks(brickSheet) {
 	const canvas = getCanvas()
 	let x = 0
-	const BRICK_SIZE = 64
 	const y = canvas.height
 	const bricks = []
 	while (x + BRICK_SIZE < canvas.width) {
@@ -113,7 +105,7 @@ function checkCollisionBrick(player, brick) {
 	const xDeltaLeft = player.x + player.width - brick.x
 	const xDeltaRight = player.x - brick.x - brick.width
 	if (yDeltaTop >= 8 && player.y < brick.y + brick.height) {
-		player.dy = PLAYER_SPEED
+		player.dy = PLAYER_Y_VELOCITY
 		// left side of brick
 		if (
 			// right side of player > left side of brick
@@ -148,7 +140,7 @@ function checkCollisionBrick(player, brick) {
 		player.dy = brick.dy
 		player.y = brick.y - player.height
 	} else {
-		player.dy = PLAYER_SPEED
+		player.dy = PLAYER_Y_VELOCITY
 	}
 }
 
@@ -156,6 +148,8 @@ function main() {
 	const { canvas } = init()
 	initKeys()
 	let bricks = []
+	let score = 0
+	let level = 1
 	load("assets/sprites/birds.png", "assets/sprites/bricks.png").then(
 		([playerSprite, brickSprite]) => {
 			let playerSheet = SpriteSheet({
@@ -185,9 +179,22 @@ function main() {
 				}
 			})
 
+			let scoreText = Sprite({
+				x: 20,
+				y: 44,
+				render() {
+					this.context.font = "32px monospace"
+					this.context.fillStyle = "white"
+					this.context.fillText(score, this.x, this.y)
+					this.context.strokeStyle = "black"
+					this.context.strokeText(score, this.x, this.y)
+				}
+			})
+
 			const player = createPlayer(playerSheet)
 			const throttledCreateRowOfBricks = throttle(() => {
 				bricks = bricks.concat(createRowOfBricks(brickSheet))
+				score += 100
 			}, 1000)
 
 			const loop = GameLoop({
@@ -199,10 +206,12 @@ function main() {
 						brick.update()
 						checkCollisionBrick(player, brick)
 					})
+					scoreText.update()
 				},
 				render() {
 					player.render()
 					bricks.forEach(sprite => sprite.render())
+					scoreText.render()
 				}
 			})
 			on("gameover", () => {
