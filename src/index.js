@@ -58,9 +58,14 @@ function createRowOfBricks(sheet, pool) {
 	let x = 0
 	const y = canvas.height
 	const mandatorySpace = Math.round(Math.random() * BRICKS_PER_ROW)
+	let holesCount = 0
+	const MAX_HOLES = 4
 	for (let i = 0; i < BRICKS_PER_ROW; i++) {
 		x = BRICK_SIZE * i
-		if (i !== mandatorySpace && Math.round(Math.random() * 2) > 0) {
+		if (
+			holesCount >= MAX_HOLES ||
+			(i !== mandatorySpace && Math.round(Math.random() * 4) > 0)
+		) {
 			pool.get({
 				x,
 				y,
@@ -72,6 +77,8 @@ function createRowOfBricks(sheet, pool) {
 					return !(this.y + this.height < 0)
 				}
 			})
+		} else {
+			holesCount++
 		}
 	}
 }
