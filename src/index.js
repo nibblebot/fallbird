@@ -15,14 +15,16 @@ import {
 
 import throttle from "lodash/throttle"
 
-const PLAYER_Y_VELOCITY = 1
-const MAX_X_VELOCITY = 8
-const PLAYER_HEIGHT = 68
-const PLAYER_WIDTH = 64
+const PLAYER_Y_VELOCITY = 2.5
+const MAX_X_VELOCITY = 10
+const PLAYER_HEIGHT = 34
+const PLAYER_WIDTH = 32
 
-const BRICK_SIZE = 64
+const BRICK_SIZE = 32
 const BRICK_VELOCITY = -2
-const BRICKS_PER_ROW = 14
+const BRICKS_PER_ROW = 28
+const MAX_BRICKS = 150
+const MAX_HOLES = 3
 
 const COLLISION_THRESHOLD = 8
 
@@ -59,7 +61,6 @@ function createRowOfBricks(sheet, pool) {
 	const y = canvas.height
 	const mandatorySpace = Math.round(Math.random() * BRICKS_PER_ROW)
 	let holesCount = 0
-	const MAX_HOLES = 4
 	for (let i = 0; i < BRICKS_PER_ROW; i++) {
 		x = BRICK_SIZE * i
 		if (
@@ -197,14 +198,14 @@ function main() {
 
 			const brickPool = Pool({
 				create: Sprite,
-				maxSize: 70
+				maxSize: MAX_BRICKS
 			})
 
 			const player = createPlayer(playerSheet)
 			const throttledCreateRowOfBricks = throttle(() => {
 				createRowOfBricks(brickSheet, brickPool)
 				score += 100
-			}, 1000)
+			}, 600)
 
 			const loop = GameLoop({
 				update() {
