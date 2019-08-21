@@ -7,6 +7,7 @@ import {
 	initKeys,
 	load,
 	GameLoop,
+	Pool,
 	Sprite,
 	SpriteSheet,
 	keyPressed
@@ -14,13 +15,13 @@ import {
 
 import throttle from "lodash/throttle"
 
-const PLAYER_Y_VELOCITY = 3
+const PLAYER_Y_VELOCITY = 1
 const MAX_X_VELOCITY = 8
 const PLAYER_HEIGHT = 68
 const PLAYER_WIDTH = 64
 
 const BRICK_SIZE = 64
-const BRICK_VELOCITY = -4
+const BRICK_VELOCITY = -2
 const BRICKS_PER_ROW = 14
 
 const COLLISION_THRESHOLD = 8
@@ -52,45 +53,27 @@ function createPlayer(playerSheet) {
 	})
 }
 
-function createBrick(brickSheet, x, y) {
-	return Sprite({
-		x,
-		y,
-		width: PLAYER_WIDTH,
-		height: PLAYER_HEIGHT,
-		animations: brickSheet.animations,
-		dy: BRICK_VELOCITY,
-		update() {
-			this.advance()
-		}
-	})
-}
-
-function createRowOfBricks(brickSheet) {
+function createRowOfBricks(sheet, pool) {
 	const canvas = getCanvas()
 	let x = 0
 	const y = canvas.height
-	let hasHoles = false
-	let bricks
-
-	function createBricks() {
-		bricks = []
-		for (let i = 0; i < BRICKS_PER_ROW; i++) {
-			x = BRICK_SIZE * i
-			if (Math.round(Math.random() * 2) > 0) {
-				bricks.push(createBrick(brickSheet, x, y))
-			} else {
-				hasHoles = true
-			}
+	const mandatorySpace = Math.round(Math.random() * BRICKS_PER_ROW)
+	for (let i = 0; i < BRICKS_PER_ROW; i++) {
+		x = BRICK_SIZE * i
+		if (i !== mandatorySpace && Math.round(Math.random() * 2) > 0) {
+			pool.get({
+				x,
+				y,
+				width: BRICK_SIZE,
+				height: BRICK_SIZE,
+				animations: sheet.animations,
+				dy: BRICK_VELOCITY,
+				isAlive() {
+					return !(this.y + this.height < 0)
+				}
+			})
 		}
-		return bricks
 	}
-
-	while (!hasHoles) {
-		createBricks()
-	}
-
-	return bricks
 }
 
 function checkPlayerBounds(canvas, player) {
@@ -161,7 +144,6 @@ function checkCollisionBrick(player, brick) {
 function main() {
 	const { canvas } = init()
 	initKeys()
-	let bricks = []
 	let score = 0
 	let level = 1
 	load("assets/sprites/birds.png", "assets/sprites/bricks.png").then(
@@ -179,6 +161,7 @@ function main() {
 					}
 				}
 			})
+
 			let brickSheet = SpriteSheet({
 				image: brickSprite,
 				frameWidth: 16,
@@ -205,19 +188,24 @@ function main() {
 				}
 			})
 
+			const brickPool = Pool({
+				create: Sprite,
+				maxSize: 70
+			})
+
 			const player = createPlayer(playerSheet)
 			const throttledCreateRowOfBricks = throttle(() => {
-				createRowOfBricks(brickSheet).forEach(brick =>
-					bricks.push(brick)
-				)
+				createRowOfBricks(brickSheet, brickPool)
 				score += 100
 			}, 1000)
 
 			const loop = GameLoop({
 				update() {
+					brickPool.update()
 					player.update()
 					throttledCreateRowOfBricks()
 					checkPlayerBounds(canvas, player)
+					const bricks = brickPool.getAliveObjects()
 					bricks.forEach(brick => {
 						brick.update()
 						checkCollisionBrick(player, brick)
@@ -226,7 +214,7 @@ function main() {
 				},
 				render() {
 					player.render()
-					bricks.forEach(sprite => sprite.render())
+					brickPool.getAliveObjects().forEach(brick => brick.render())
 					scoreText.render()
 				}
 			})
