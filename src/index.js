@@ -21,6 +21,7 @@ const PLAYER_WIDTH = 64
 
 const BRICK_SIZE = 64
 const BRICK_VELOCITY = -4
+const BRICKS_PER_ROW = 14
 
 const COLLISION_THRESHOLD = 8
 
@@ -69,13 +70,26 @@ function createRowOfBricks(brickSheet) {
 	const canvas = getCanvas()
 	let x = 0
 	const y = canvas.height
-	const bricks = []
-	while (x + BRICK_SIZE < canvas.width) {
-		if (Math.round(Math.random() * 2) > 0) {
-			bricks.push(createBrick(brickSheet, x, y))
+	let hasHoles = false
+	let bricks
+
+	function createBricks() {
+		bricks = []
+		for (let i = 0; i < BRICKS_PER_ROW; i++) {
+			x = BRICK_SIZE * i
+			if (Math.round(Math.random() * 2) > 0) {
+				bricks.push(createBrick(brickSheet, x, y))
+			} else {
+				hasHoles = true
+			}
 		}
-		x += BRICK_SIZE
+		return bricks
 	}
+
+	while (!hasHoles) {
+		createBricks()
+	}
+
 	return bricks
 }
 
@@ -193,7 +207,9 @@ function main() {
 
 			const player = createPlayer(playerSheet)
 			const throttledCreateRowOfBricks = throttle(() => {
-				bricks = bricks.concat(createRowOfBricks(brickSheet))
+				createRowOfBricks(brickSheet).forEach(brick =>
+					bricks.push(brick)
+				)
 				score += 100
 			}, 1000)
 
